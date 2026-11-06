@@ -21,8 +21,8 @@ const ImportModal = ({ onClose, onConfirm }) => {
 
         try {
             // Aquí podrías realizar la llamada a la API o la operación de importación
-            await onConfirm(file, groupId); // Asume que `onConfirm` es una función asincrónica
-            setSuccess("Importación exitosa");
+            const imported = await onConfirm(file, groupId); // Asume que `onConfirm` es una función asincrónica
+            setSuccess(Array.isArray(imported) ? `Se importaron ${imported.length} contacto(s)` : "Importación exitosa");
             setError(""); // Limpiar errores si la operación es exitosa
 
             // Mostrar el mensaje de éxito y cerrar el modal después de 1.5 segundos
@@ -31,13 +31,9 @@ const ImportModal = ({ onClose, onConfirm }) => {
             }, 1500);
 
         } catch (error) {
-            setError("Hubo un error durante la importación.");
-            setSuccess(""); // Limpiar mensajes de éxito en caso de error
-
-            // Mostrar el mensaje de error y cerrar el modal inmediatamente
-            setTimeout(() => {
-                onClose(); // Cerrar el modal si hay error
-            }, 0);
+            // Se deja el modal abierto para que el usuario vea el motivo del error
+            setError(error.message || "Hubo un error durante la importación.");
+            setSuccess("");
         } finally {
             setLoading(false); // Ocultar el loader
         }

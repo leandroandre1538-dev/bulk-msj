@@ -10,9 +10,7 @@ export function createAccessToken(payload) {
                 expiresIn: "1d"
             },
             (err, token) => {
-                if (err) {
-                    console.log(err);
-                }
+                if (err) return reject(err);
                 resolve(token);
             }
         );

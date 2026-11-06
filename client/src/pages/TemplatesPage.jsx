@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTemplate } from '../context/TemplateContext';
 import { useCredential } from '../context/CredentialContext';
@@ -6,6 +6,9 @@ import { useContact } from '../context/ContactContext'
 import { useGroup } from '../context/GroupContext';
 import LoaderGeneral from '../components/LoaderGeneral';
 import SendSummaryModal from '../components/SendSummaryModal';
+
+// Opción especial para usar el nombre del contacto como variable de la plantilla.
+const NAME_KEY = '__name__';
 
 function TemplatesPage() {
     const { user } = useAuth();
@@ -46,6 +49,26 @@ function TemplatesPage() {
     const [loadingData, setLoadingData] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [sendResults, setSendResults] = useState([]);
+    const [errorMessage, setErrorMessage] = useState('');
+    const [sending, setSending] = useState(false);
+    const [progress, setProgress] = useState({ sent: 0, total: 0 });
+
+    // Campos disponibles para las variables: el nombre + todas las columnas extra de los contactos del grupo.
+    const variableKeys = useMemo(() => {
+        const keys = new Set();
+        filteredContacts.forEach(contact => Object.keys(contact.variables || {}).forEach(key => keys.add(key)));
+        return [...keys];
+    }, [filteredContacts]);
+
+    const renderVariableOptions = () => (
+        <>
+            <option value="">Selecciona un campo</option>
+            <option value={NAME_KEY}>Nombre del contacto</option>
+            {variableKeys.map(key => (
+                <option key={key} value={key}>{key}</option>
+            ))}
+        </>
+    );
 
 
     const extractDynamicVariables = (content) => {
@@ -92,8 +115,10 @@ function TemplatesPage() {
 
     const handleShareTemplates = async () => {
         setLoadingRefresh(true);
+        setErrorMessage('');
         try {
-            await getTemplates(wabId, tokenAccess);
+            const error = await getTemplates();
+            if (error) setErrorMessage(error);
             setIsSendButtonEnabled(false); // Desactiva el botón de enviar mensaje al refrescar
         } catch (error) {
 
@@ -122,14 +147,16 @@ function TemplatesPage() {
         setSelectedButtonKeys('');
 
         setIsSendButtonEnabled(false);
-        setIsSelectTemplate(false);
+        setSelectedOption_NameTemplate('');
+        setIsSelectTemplate(true);
+        setIsGroupSelectEnabled(false);
     };
 
     const handleSelectionChange = (e) => {
         // Aquí se maneja lógica para manejar el cambio de selección
         const selectedOption = e.target.value;
         setSelectedOption_NameTemplate(selectedOption);
-        setIsSelectTemplate(selectedOption === 'Selecciona una plantilla');
+        setIsSelectTemplate(selectedOption === '');
         setIsSendButtonEnabled(false); // Desactiva el botón de enviar mensaje al cambiar la plantilla
     };
 
@@ -143,7 +170,8 @@ function TemplatesPage() {
             }
 
             // Filtra los datos directamente sin usar el estado templateDataFilter
-            const getTemplateData = templates.filter(item => selectedOption_NameTemplate.includes(item.name));
+            const selectedTemplate = templates[Number(selectedOption_NameTemplate)];
+            const getTemplateData = selectedTemplate ? [selectedTemplate] : [];
             console.log(getTemplateData);
             setTemplateDataFilter(getTemplateData);
 
@@ -287,17 +315,17 @@ function TemplatesPage() {
     };
     /*------------------------------------------------------------------------------------------------------*/
     /*--------------------------------------ENVIAR DE MENSAJES----------------------------------------------*/
-    const sanitizeVariables = (selectedKeys = [], variables) => {
+    const sanitizeVariables = (selectedKeys = [], contact) => {
         // Asegúrate de que selectedKeys sea un array, incluso si no se pasa
         if (!Array.isArray(selectedKeys)) {
             console.error('selectedKeys debe ser un array. Valor recibido:', selectedKeys);
             return []; // O maneja el error según lo que necesites
         }
         // Mapear las claves seleccionadas a sus valores correspondientes y devolverlos como un arreglo
-        return selectedKeys.map(key => variables[key] || '');
+        return selectedKeys.map(key => key === NAME_KEY ? (contact.name || '') : (contact.variables?.[key] || ''));
     };    
 
-    const createPayloadData = (accessToken, phoneId, template, numbers, filteredContacts, selectedHeaderKeys, selectedBodyKeys, selectedButtonKeys) => {
+    const createPayloadData = (template, contacts, selectedHeaderKeys, selectedBodyKeys, selectedButtonKeys) => {
         let parsedTemplate;
 
         try {
@@ -318,44 +346,58 @@ function TemplatesPage() {
         }
 
         // Construye la lista de destinatarios asignando las variables correspondientes a cada uno
-        const recipientList = numbers.map(number => {
-            const contact = filteredContacts.find(contact => contact.phoneNumber === number);
-            const variables = contact ? contact.variables : {};
-
-            return {
-                number,
-                variables: {
-                    header: sanitizeVariables(selectedHeaderKeys, variables),
-                    body: sanitizeVariables(selectedBodyKeys, variables),
-                    buttons: sanitizeVariables(selectedButtonKeys, variables),
-                }
-            };
-        });
+        const recipientList = contacts.map(contact => ({
+            number: contact.phoneNumber,
+            variables: {
+                header: sanitizeVariables(selectedHeaderKeys, contact),
+                body: sanitizeVariables(selectedBodyKeys, contact),
+                buttons: sanitizeVariables(selectedButtonKeys, contact),
+            }
+        }));
 
         return {
             template: parsedTemplate,
-            recipientList,
-            accessToken,
-            phoneId
+            recipientList
         };
     };
 
     const handleSendTemplates = async () => {
-        console.log("EN USO");
+        setErrorMessage('');
 
-        console.log(selectedHeaderKeys);
-        console.log(selectedBodyKeys);
-        console.log(selectedButtonKeys);
+        if (filteredContacts.length === 0) {
+            setErrorMessage('El grupo seleccionado no tiene contactos.');
+            return;
+        }
 
-        const data = await createPayloadData(tokenAccess, phoneId, templateDataFilter, numbers, filteredContacts, selectedHeaderKeys, selectedBodyKeys, selectedButtonKeys);
-        console.log(data);
+        // Cada variable {{n}} de la plantilla debe tener un campo asignado.
+        const isMissing = (variables, keys) => variables.some((_, i) => !(Array.isArray(keys) && keys[i]));
+        if (isMissing(dynamicVariablesHeaderSelect, selectedHeaderKeys) ||
+            isMissing(dynamicVariablesBodySelect, selectedBodyKeys) ||
+            isMissing(dynamicVariablesButtonSelect, selectedButtonKeys)) {
+            setErrorMessage('Asigna un campo a cada variable {{n}} de la plantilla antes de enviar.');
+            return;
+        }
+
+        const data = createPayloadData(templateDataFilter, filteredContacts, selectedHeaderKeys, selectedBodyKeys, selectedButtonKeys);
+        if (!data) {
+            setErrorMessage('No se pudo preparar la plantilla seleccionada.');
+            return;
+        }
+
+        if (!window.confirm(`Se enviará la plantilla "${data.template.name}" a ${data.recipientList.length} contacto(s). ¿Continuar?`)) {
+            return;
+        }
+
+        setSending(true);
+        setProgress({ sent: 0, total: data.recipientList.length });
         try {
-            const response = await sendMessagesByTemplate(data);
-            console.log('Mensajes enviados:', response);
-            setSendResults(response.results)
-
+            const response = await sendMessagesByTemplate(data, (sent, total) => setProgress({ sent, total }));
+            setSendResults(response.results);
         } catch (error) {
             console.error('Error al enviar mensajes:', error);
+            setErrorMessage('Ocurrió un error al enviar los mensajes.');
+        } finally {
+            setSending(false);
         }
 
         // Abre el modal después de que el estado esté actualizado
@@ -383,7 +425,8 @@ function TemplatesPage() {
         setNumbers([]);
 
         setIsSendButtonEnabled(false);
-        setIsSelectTemplate(false);
+        setSelectedOption_NameTemplate('');
+        setIsSelectTemplate(true);
         setIsGroupSelectEnabled(false);
     };
 
@@ -466,9 +509,9 @@ function TemplatesPage() {
                         type="button"
                         className={`mb-3 md:mb-0 inline-flex lg:w-[200px] items-center justify-center rounded-md bg-[#6D28D9] px-3 py-2 text-md font-semibold text-white shadow-sm hover:bg-[#5B21B6] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 ${!isSendButtonEnabled ? 'opacity-50 cursor-not-allowed' : ''} w-full`}
                         onClick={handleSendTemplates}
-                        disabled={!isSendButtonEnabled}
+                        disabled={!isSendButtonEnabled || sending}
                     >
-                        <span>Enviar Mensaje</span>
+                        <span>{sending ? `Enviando ${progress.sent}/${progress.total}...` : 'Enviar Mensaje'}</span>
                     </button>
                     <SendSummaryModal
                         isOpen={isModalOpen}
@@ -477,6 +520,12 @@ function TemplatesPage() {
                     />
                 </div>
             </div>
+
+            {errorMessage && (
+                <div className="mt-4 bg-red-500 text-white p-3 rounded-md">
+                    {errorMessage}
+                </div>
+            )}
 
             <div className="flex flex-col lg:flex-row lg:justify-between space-y-4 lg:space-y-0 lg:space-x-4 pt-6">
                 <div className="bg-[#141414] p-4 rounded-lg flex-1">
@@ -495,11 +544,12 @@ function TemplatesPage() {
                         <label className="block text-white">Plantilla</label>
                         <select
                             className="w-full bg-[#F2F2DC] text-[#333333] p-2 rounded"
+                            value={selectedOption_NameTemplate}
                             onChange={handleSelectionChange}
                         >
-                            <option>Selecciona una plantilla</option>
+                            <option value="">Selecciona una plantilla</option>
                             {templates.map((template, index) => (
-                                <option key={index}>{template.name}</option>
+                                <option key={index} value={index}>{template.name} ({template.language})</option>
                             ))}
                         </select>
                     </div>
@@ -534,11 +584,11 @@ function TemplatesPage() {
                             value={destinationGroup}
                             onChange={(e) => {
                                 handleDestinationGroupChange(e);
-                                setIsSendButtonEnabled(true);
+                                setIsSendButtonEnabled(e.target.value !== '');
                             }}
                             disabled={!isGroupSelectEnabled}
                         >
-                            <option>Selecciona un grupo</option>
+                            <option value="">Selecciona un grupo</option>
                             {groups.length > 0 ? (
                                 groups.map((group, index) => (
                                     <option key={index} value={group._id}>
@@ -546,9 +596,12 @@ function TemplatesPage() {
                                     </option>
                                 ))
                             ) : (
-                                <option>No hay grupos disponibles</option>
+                                <option value="" disabled>No hay grupos disponibles</option>
                             )}
                         </select>
+                        {destinationGroup && (
+                            <p className="text-sm text-[#7A7A7A] mt-1">{filteredContacts.length} contacto(s) en el grupo</p>
+                        )}
                     </div>
                 </div>
             </div>
@@ -592,10 +645,7 @@ function TemplatesPage() {
                                             value={selectedHeaderKeys[index] || ''}
                                             onChange={(e) => handleSelectHeaderChange(e.target.value, index)}
                                         >
-                                            <option value="">Selecciona un campo</option>
-                                            {Object.keys(filteredContacts[0]?.variables || {}).map(key => (
-                                                <option key={key} value={key}>{key}</option>
-                                            ))}
+                                            {renderVariableOptions()}
                                         </select>
                                     </div>
                                 ))}
@@ -638,10 +688,7 @@ function TemplatesPage() {
                                             value={selectedBodyKeys[index] || ''}
                                             onChange={(e) => handleSelectBodyChange(e.target.value, index)}
                                         >
-                                            <option value="">Selecciona un campo</option>
-                                            {Object.keys(filteredContacts[0]?.variables || {}).map(key => (
-                                                <option key={key} value={key}>{key}</option>
-                                            ))}
+                                            {renderVariableOptions()}
                                         </select>
                                     </div>
                                 ))}
@@ -720,10 +767,7 @@ function TemplatesPage() {
                                             value={selectedButtonKeys[index] || ''}
                                             onChange={(e) => handleSelectButtonChange(e.target.value, index)}
                                         >
-                                            <option value="">Selecciona un campo</option>
-                                            {Object.keys(filteredContacts[0]?.variables || {}).map(key => (
-                                                <option key={key} value={key}>{key}</option>
-                                            ))}
+                                            {renderVariableOptions()}
                                         </select>
                                     </div>
                                 ))}

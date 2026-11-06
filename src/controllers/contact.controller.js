@@ -1,6 +1,7 @@
 import Contact from '../models/contact.model.js';
 import Group from '../models/group.model.js';
 import XLSX from 'xlsx';
+import { normalizePhone } from '../libs/whatsapp.js';
 
 // Obtener todos los contactos del usuario autenticado
 export const getAllContacts = async (req, res) => {
@@ -37,7 +38,8 @@ export const getContact = async (req, res) => {
 // Crear un nuevo contacto para el usuario autenticado
 export const createContact = async (req, res) => {
     try {
-        const { name, phoneNumber, groupId, variables } = req.body;
+        const { name, groupId, variables } = req.body;
+        const phoneNumber = normalizePhone(req.body.phoneNumber);
 
         // Verificar si el grupo existe y pertenece al usuario autenticado
         const group = await Group.findOne({ _id: groupId, userId: req.user.id });
@@ -76,7 +78,8 @@ export const createContact = async (req, res) => {
 // Actualizar un contacto por ID del usuario autenticado
 export const updateContact = async (req, res) => {
     try {
-        const { name, phoneNumber, groupId, variables } = req.body;
+        const { name, groupId, variables } = req.body;
+        const phoneNumber = normalizePhone(req.body.phoneNumber);
 
         // Verificar si el grupo existe y pertenece al usuario autenticado
         const group = await Group.findOne({ _id: groupId, userId: req.user.id });
@@ -160,11 +163,26 @@ export const getContactsByGroup = async (req, res) => {
 };
 
 
+// Columnas reconocidas del Excel (sin tildes, en mayúsculas). El resto se guardan como variables.
+const NAME_COLUMNS = ['NOMBRE', 'NOMBRES', 'NAME'];
+const PHONE_COLUMNS = ['NUMERO', 'TELEFONO', 'CELULAR', 'WHATSAPP', 'PHONE', 'MOVIL'];
+
+const normalizeHeader = (header) =>
+    String(header ?? '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+// Mongoose no admite claves de Map con "." o que empiecen por "$".
+const safeVariableKey = (header) =>
+    String(header ?? '').trim().toUpperCase().replace(/\./g, '_').replace(/^\$/, '_');
+
 // Función para crear nuevos contactos desde Excel para un grupo específico
 export const createContactsForExcel = async (req, res) => {
     try {
         const { groupId } = req.body;
         const file = req.file;
+
+        if (!file) {
+            return res.status(400).json({ message: "Debe adjuntar un archivo Excel" });
+        }
 
         // Verificar si el grupo existe y pertenece al usuario autenticado
         const group = await Group.findOne({ _id: groupId, userId: req.user.id });
@@ -174,70 +192,63 @@ export const createContactsForExcel = async (req, res) => {
 
         // Leer el archivo Excel desde el buffer
         const workbook = XLSX.read(file.buffer, { type: 'buffer' });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
 
         if (rows.length <= 1) {
             return res.status(400).json({ message: "El archivo está vacío o no tiene datos válidos" });
         }
 
-        // Obtener encabezados
         const headers = rows[0];
-        const dataRows = rows.slice(1); // Excluir los encabezados
+        const normalized = headers.map(normalizeHeader);
+        const nameIndex = normalized.findIndex((h) => NAME_COLUMNS.includes(h));
+        const phoneIndex = normalized.findIndex((h) => PHONE_COLUMNS.includes(h));
 
-        // Procesar cada fila del archivo Excel
+        if (phoneIndex === -1) {
+            return res.status(400).json({
+                message: "El Excel debe tener una columna NÚMERO (o TELÉFONO / CELULAR) con los números en formato internacional"
+            });
+        }
+
+        // Números que ya existen en el grupo (una sola consulta)
+        const existing = await Contact.find({ group: groupId, userId: req.user.id }, 'phoneNumber');
+        const seen = new Set(existing.map((c) => normalizePhone(c.phoneNumber)));
+
         const newContacts = [];
-        for (const dataRow of dataRows) {
-            const contactData = {};
+        let skipped = 0;
 
-            headers.forEach((header, index) => {
-                const value = dataRow[index];
-                
-                // Asignar el valor a la clave correspondiente
-                if (header.toUpperCase() === 'NOMBRE') {
-                    contactData.name = value;
-                } else if (header.toUpperCase() === 'NÚMERO') {
-                    contactData.phoneNumber = value;
-                } else {
-                    // Agregar otras variables al campo 'variables'
-                    contactData.variables = contactData.variables || {};
-                    contactData.variables[header.toUpperCase()] = value;
-                }
-            });
-
-            const { name, phoneNumber, variables } = contactData;
-
-            // Verificar si ya existe un contacto con el mismo número y grupo
-            const existingContact = await Contact.findOne({
-                phoneNumber,
-                group: groupId,
-                userId: req.user.id
-            });
-
-            if (existingContact) {
-                console.log(`Contacto con número ${phoneNumber} ya existe en el grupo ${groupId}`);
-                continue; // Saltar si ya existe
+        for (const row of rows.slice(1)) {
+            const phoneNumber = normalizePhone(row[phoneIndex]);
+            if (!phoneNumber || seen.has(phoneNumber)) {
+                skipped++;
+                continue;
             }
+            seen.add(phoneNumber);
 
-            // Crear un nuevo contacto
-            const newContact = new Contact({
-                name,
+            const variables = {};
+            headers.forEach((header, index) => {
+                if (index === nameIndex || index === phoneIndex || !String(header ?? '').trim()) return;
+                variables[safeVariableKey(header)] = String(row[index] ?? '').trim();
+            });
+
+            const name = nameIndex !== -1 ? String(row[nameIndex] ?? '').trim() : '';
+
+            newContacts.push({
+                name: name || phoneNumber,
                 phoneNumber,
                 group: groupId,
                 userId: req.user.id,
-                variables: variables || {}
+                variables
             });
-
-            const savedContact = await newContact.save();
-            newContacts.push(savedContact);
         }
 
         if (newContacts.length === 0) {
-            return res.status(400).json({ message: "No se pudieron crear nuevos contactos" });
+            return res.status(400).json({ message: "No hay contactos nuevos para importar (vacíos o ya existentes en el grupo)" });
         }
 
-        res.status(201).json(newContacts);
+        const savedContacts = await Contact.insertMany(newContacts);
+        console.log(`Importados ${savedContacts.length} contactos, omitidos ${skipped}`);
+        res.status(201).json(savedContacts);
     } catch (error) {
         console.error('Error al crear contactos desde Excel:', error);
         res.status(500).json({ message: "Error al crear contactos desde Excel" });

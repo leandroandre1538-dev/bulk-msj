@@ -3,6 +3,9 @@ import { getTemplatesRequest, sendMessagesByTemplateRequest } from "../api/templ
 
 const TemplateContext = createContext();
 
+// Debe coincidir con MAX_RECIPIENTS_PER_REQUEST del backend.
+const BATCH_SIZE = 50;
+
 export const useTemplate = () => {
     const context = useContext(TemplateContext);
 
@@ -13,26 +16,42 @@ export const useTemplate = () => {
     return context;
 }
 
+const apiErrorMessage = (error, fallback) =>
+    error?.response?.data?.message || error?.message || fallback;
+
 export function TemplateProvider({ children }) {
     const [templates, setTemplates] = useState([]);
 
-    const getTemplates = async (waba_id, access_token) => {
+    // Devuelve un mensaje de error (string) o null si todo salió bien.
+    const getTemplates = async () => {
         try {
-            const response = await getTemplatesRequest(waba_id, access_token);
-            setTemplates(response.data.data);
+            const response = await getTemplatesRequest();
+            setTemplates(response.data.data || []);
+            return null;
         } catch (error) {
             console.log(error);
+            setTemplates([]);
+            return apiErrorMessage(error, 'No se pudieron obtener las plantillas');
         }
     }
 
-    const sendMessagesByTemplate = async (data) => {
-        try {
-            const response = await sendMessagesByTemplateRequest(data);
-            return response.data;
-        } catch (error) {
-            console.error(error);
-            throw error;
+    // Envía la lista en lotes para no superar el tiempo máximo de la función en Vercel.
+    // onProgress(enviados, total) se llama después de cada lote.
+    const sendMessagesByTemplate = async ({ template, recipientList }, onProgress) => {
+        const results = [];
+        for (let i = 0; i < recipientList.length; i += BATCH_SIZE) {
+            const batch = recipientList.slice(i, i + BATCH_SIZE);
+            try {
+                const response = await sendMessagesByTemplateRequest({ template, recipientList: batch });
+                results.push(...response.data.results);
+            } catch (error) {
+                console.error(error);
+                const description = apiErrorMessage(error, 'Error al enviar el lote');
+                results.push(...batch.map((r) => ({ phone: r.number, state: 'warning', description })));
+            }
+            onProgress?.(Math.min(i + BATCH_SIZE, recipientList.length), recipientList.length);
         }
+        return { results };
     }
 
     return (

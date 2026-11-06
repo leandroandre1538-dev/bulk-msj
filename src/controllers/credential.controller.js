@@ -1,25 +1,21 @@
 import Credential from '../models/credential.model.js';
-import User from '../models/user.model.js';
 
+// Todas las operaciones se limitan a las credenciales del usuario autenticado (req.user.id).
+// El userId que pueda venir en el body o en la URL se ignora.
+
+const clean = (value) => (typeof value === 'string' ? value.trim() : value);
+
+// Crear (o actualizar si ya existe: un usuario tiene una sola credencial de WhatsApp)
 export const createCredential = async (req, res) => {
-    const { wabId, phoneId, tokenAccess, userId } = req.body;
+    const { wabId, phoneId, tokenAccess } = req.body;
 
     try {
-        // Verificar si el usuario existe
-        const userExists = await User.findById(userId);
-        if (!userExists) {
-            return res.status(400).json({ message: 'User not found' });
-        }
-
-        const newCredential = new Credential({
-            wabId,
-            phoneId,
-            tokenAccess,
-            userId
-        });
-
-        const savedCredential = await newCredential.save();
-        res.status(201).json(savedCredential);
+        const credential = await Credential.findOneAndUpdate(
+            { userId: req.user.id },
+            { wabId: clean(wabId), phoneId: clean(phoneId), tokenAccess: clean(tokenAccess), userId: req.user.id },
+            { new: true, upsert: true, runValidators: true }
+        );
+        res.status(201).json(credential);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -27,18 +23,16 @@ export const createCredential = async (req, res) => {
 
 export const getAllCredentials = async (req, res) => {
     try {
-        const credential = await Credential.find().populate('userId', 'username email');
-        res.json(credential);
+        const credentials = await Credential.find({ userId: req.user.id });
+        res.json(credentials);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
 };
 
 export const getCredentialById = async (req, res) => {
-    const { id } = req.params;
-
     try {
-        const credential = await Credential.findById(id).populate('userId', 'username email');
+        const credential = await Credential.findOne({ _id: req.params.id, userId: req.user.id });
         if (!credential) {
             return res.status(404).json({ message: 'Credential not found' });
         }
@@ -49,22 +43,14 @@ export const getCredentialById = async (req, res) => {
 };
 
 export const updateCredential = async (req, res) => {
-    const { id } = req.params;
-    const { wabId, phoneId, tokenAccess, userId } = req.body;
+    const { wabId, phoneId, tokenAccess } = req.body;
 
     try {
-        // Verificar si el usuario existe
-        const userExists = await User.findById(userId);
-        if (!userExists) {
-            return res.status(400).json({ message: 'User not found' });
-        }
-
-        const updatedCredential = await Credential.findByIdAndUpdate(id, {
-            wabId,
-            phoneId,
-            tokenAccess,
-            userId
-        }, { new: true });
+        const updatedCredential = await Credential.findOneAndUpdate(
+            { _id: req.params.id, userId: req.user.id },
+            { wabId: clean(wabId), phoneId: clean(phoneId), tokenAccess: clean(tokenAccess) },
+            { new: true, runValidators: true }
+        );
 
         if (!updatedCredential) {
             return res.status(404).json({ message: 'Credential not found' });
@@ -76,10 +62,8 @@ export const updateCredential = async (req, res) => {
 };
 
 export const deleteCredential = async (req, res) => {
-    const { id } = req.params;
-
     try {
-        const deletedCredential = await Credential.findByIdAndDelete(id);
+        const deletedCredential = await Credential.findOneAndDelete({ _id: req.params.id, userId: req.user.id });
         if (!deletedCredential) {
             return res.status(404).json({ message: 'Credential not found' });
         }
@@ -89,17 +73,15 @@ export const deleteCredential = async (req, res) => {
     }
 };
 
-// Función para buscar credenciales por el código de usuario
+// Se mantiene la ruta /credentials/user/:userId por compatibilidad con el frontend,
+// pero solo devuelve las credenciales del usuario autenticado.
 export const getCredentialsByUserId = async (req, res) => {
-    const { userId } = req.params;
+    if (req.params.userId !== String(req.user.id)) {
+        return res.status(403).json({ message: 'Forbidden' });
+    }
 
     try {
-        const userExists = await User.findById(userId);
-        if (!userExists) {
-            return res.status(404).json({ message: 'User not found' });
-        }
-
-        const credentials = await Credential.find({ userId }).populate('userId', 'username email');
+        const credentials = await Credential.find({ userId: req.user.id });
         res.json(credentials);
     } catch (error) {
         console.error(`Error fetching credentials: ${error}`);

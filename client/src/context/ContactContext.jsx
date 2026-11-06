@@ -116,8 +116,10 @@ export function ContactProvider({ children }) {
             } else {
                 console.error('Error al crear contactos desde Excel:', res);
             }
+            return res.data;
         } catch (error) {
             console.error('Error al crear contactos desde Excel:', error);
+            throw new Error(error?.response?.data?.message || 'Hubo un error durante la importación.');
         }
     };
 

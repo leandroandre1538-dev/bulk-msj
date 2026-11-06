@@ -13,7 +13,7 @@ import multer from 'multer';
 
 // Configuración de multer para manejo de archivos
 const storage = multer.memoryStorage();
-const upload = multer({ storage: storage });
+const upload = multer({ storage: storage, limits: { fileSize: 4 * 1024 * 1024 } }); // Vercel limita el body a ~4.5 MB
 
 const router = Router();
 
@@ -30,6 +30,6 @@ router.delete('/contacts/:id', authRequired, deleteContact);  // Eliminar un con
 router.get('/contacts/group/:group', authRequired, getContactsByGroup);  // Obtener contactos por grupo del usuario autenticado
 
 // Ruta para importar contactos desde Excel
-router.post('/contacts/import', upload.single('file'), authRequired, createContactsForExcel);
+router.post('/contacts/import', authRequired, upload.single('file'), createContactsForExcel);
 
 export default router;

@@ -25,14 +25,8 @@ function ContactsPage() {
         setShowModal(false);
     };
 
-    const handleModalConfirm = async (file, groupId) => {
-        try {
-            await createContactsForExcel(file, groupId);
-            setShowModal(false);
-        } catch (error) {
-            console.log("Error al importar contactos: " + error.message);
-        }
-    };
+    // El modal muestra el resultado (o el error) y se cierra solo si la importación fue exitosa.
+    const handleModalConfirm = (file, groupId) => createContactsForExcel(file, groupId);
 
     const isDisabled = groups.length === 0;
     const tooltipMessage = "Primero debes crear un grupo";

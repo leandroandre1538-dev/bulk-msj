@@ -1,11 +1,6 @@
 import axios from './axios.js';
 
-export const getTemplatesRequest = (waba_id, access_token) => {
-    return axios.get(`/templates/getTemplates`, {
-        params: { waba_id, access_token }
-    });
-};
+// Las credenciales de WhatsApp se leen en el servidor, no se envían desde el navegador.
+export const getTemplatesRequest = () => axios.get(`/templates/getTemplates`);
 
-export const sendMessagesByTemplateRequest = (data) => {
-    return axios.post(`/templates/sendMessages`, data);
-};
+export const sendMessagesByTemplateRequest = (data) => axios.post(`/templates/sendMessages`, data);

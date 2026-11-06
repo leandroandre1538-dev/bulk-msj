@@ -1,14 +1,10 @@
-import dotenv from 'dotenv';
+// Servidor para desarrollo local. En Vercel se usa api/index.js.
+// 'dotenv/config' debe ser el primer import para que las variables existan al cargar config.js.
+import 'dotenv/config';
 import app from './app.js';
-import { connectDB } from './db.js';
 
-// Cargar variables de entorno
-dotenv.config();
+const PORT = process.env.PORT || 3030;
 
-// Conectar a la base de datos
-connectDB();
-
-// Exportar la aplicación Express como función serverless
-export default (req, res) => {
-  app(req, res);
-};
+app.listen(PORT, () => {
+    console.log(`>>>> API escuchando en http://localhost:${PORT}`);
+});

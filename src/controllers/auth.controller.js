@@ -2,7 +2,7 @@ import User from "../models/user.model.js";
 import bcrypt from "bcryptjs";
 import { createAccessToken } from "../libs/jwt.js";
 import jwt from 'jsonwebtoken'
-import { TOKEN_SECRET } from "../config.js";
+import { TOKEN_SECRET, COOKIE_OPTIONS } from "../config.js";
 
 export const register = async (req, res) => {
     const { username, email, password, firstName, lastName } = req.body;
@@ -26,7 +26,7 @@ export const register = async (req, res) => {
 
         const token = await createAccessToken({ id: userSaved._id });
 
-        res.cookie('token', token);
+        res.cookie('token', token, COOKIE_OPTIONS);
         res.json({
             id: userSaved._id,
             username: userSaved.username,
@@ -38,6 +38,7 @@ export const register = async (req, res) => {
         });
     } catch (error) {
         console.log(error);
+        res.status(500).json([error.message]);
     }
 };
 
@@ -57,7 +58,7 @@ export const login = async (req, res) => {
 
         const token = await createAccessToken({ id: userFound._id });
 
-        res.cookie('token', token);
+        res.cookie('token', token, COOKIE_OPTIONS);
         res.json({
             id: userFound._id,
             username: userFound.username,
