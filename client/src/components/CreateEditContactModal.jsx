@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useForm } from "react-hook-form";
 import { useContact } from "../context/ContactContext";
 import LoaderGeneral from './LoaderGeneral';
+import { Alert, Icon } from './ui';
 
 const CreateEditContactModal = ({ contact, groupId, variableKeys, onClose }) => {
     const { createContact, updateContact } = useContact();
@@ -60,83 +61,73 @@ const CreateEditContactModal = ({ contact, groupId, variableKeys, onClose }) => 
     return (
         <>
             {loading && <LoaderGeneral />}
-            <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-                <div className="bg-[#141414] rounded-lg p-6 shadow-lg w-full max-w-md">
-                    <h2 className="text-xl font-semibold text-[#F2F2DC] mb-4">
-                        {contact ? "Editar Contacto" : "Crear Contacto"}
+            <div className="g-backdrop">
+                <div className="g-dialog">
+                    <Icon name={contact ? "edit" : "person_add"} size={28} className="text-accent" />
+                    <h2 className="mt-3 mb-5 text-2xl text-fg">
+                        {contact ? "Editar contacto" : "Nuevo contacto"}
                     </h2>
 
-                    {successMessage && (
-                        <div className="bg-green-500 text-white p-2 my-2 rounded-md text-center">
-                            {successMessage}
+                    {successMessage && <Alert type="success" className="mb-4">{successMessage}</Alert>}
+                    {errorMessage && <Alert type="error" className="mb-4">{errorMessage}</Alert>}
+
+                    <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
+                        <div>
+                            <label className="g-label">Nombre</label>
+                            <input
+                                type="text"
+                                {...register('name', {
+                                    required: "El nombre es requerido",
+                                    validate: value => value.trim() !== "" || "El nombre no puede estar vacío"
+                                })}
+                                className="g-input"
+                                placeholder="Nombre"
+                            />
+                            {errors.name && <p className="g-field-error">{errors.name.message}</p>}
                         </div>
-                    )}
 
-                    {errorMessage && (
-                        <div className="bg-red-500 text-white p-2 my-2 rounded-md text-center">
-                            {errorMessage}
+                        <div>
+                            <label className="g-label">Número (con código de país)</label>
+                            <input
+                                type="text"
+                                inputMode="numeric"
+                                {...register('phoneNumber', {
+                                    required: "El número es requerido",
+                                    pattern: {
+                                        value: /^[0-9]+$/,
+                                        message: "El número debe contener solo números"
+                                    },
+                                    validate: value => value.trim() !== "" || "El número no puede estar vacío"
+                                })}
+                                className="g-input font-mono"
+                                placeholder="51987654321"
+                            />
+                            {errors.phoneNumber && <p className="g-field-error">{errors.phoneNumber.message}</p>}
                         </div>
-                    )}
-
-                    <form onSubmit={handleSubmit(onSubmit)}>
-                        <label className="block text-[#F2F2DC] mb-2">Nombre</label>
-                        <input
-                            type="text"
-                            {...register('name', {
-                                required: "El nombre es requerido",
-                                validate: value => value.trim() !== "" || "El nombre no puede estar vacío"
-                            })}
-                            className="w-full p-2 border border-[#F2F2DC] rounded-md text-black mb-2"
-                            placeholder="Nombre"
-                        />
-                        {errors.name && <p className="text-red-500">{errors.name.message}</p>}
-
-                        <label className="block text-[#F2F2DC] mb-2">Número</label>
-                        <input
-                            type="text"
-                            {...register('phoneNumber', {
-                                required: "El número es requerido",
-                                pattern: {
-                                    value: /^[0-9]+$/,
-                                    message: "El número debe contener solo números"
-                                },
-                                validate: value => value.trim() !== "" || "El número no puede estar vacío"
-                            })}
-                            className="w-full p-2 border border-[#F2F2DC] rounded-md text-black mb-2"
-                            placeholder="Número"
-                        />
-                        {errors.phoneNumber && <p className="text-red-500">{errors.phoneNumber.message}</p>}
 
                         {variableKeys.map((key, index) => (
-                            <div key={index} className="mb-2">
-                                <label className="block text-[#F2F2DC] mb-1">{key.charAt(0).toUpperCase() + key.slice(1)}</label>
+                            <div key={index}>
+                                <label className="g-label">{key.charAt(0).toUpperCase() + key.slice(1)}</label>
                                 <input
                                     type="text"
                                     {...register(`variables.${key}`, {
                                         required: `${key.charAt(0).toUpperCase() + key.slice(1)} es requerido`,
                                         validate: value => value.trim() !== "" || `${key.charAt(0).toUpperCase() + key.slice(1)} no puede estar vacío`
                                     })}
-                                    className="w-full p-2 border border-[#F2F2DC] rounded-md text-black"
+                                    className="g-input"
                                     placeholder={key}
                                     defaultValue={contact?.variables[key] || ""}
                                 />
-                                {errors.variables?.[key] && <p className="text-red-500">{errors.variables[key]?.message}</p>}
+                                {errors.variables?.[key] && <p className="g-field-error">{errors.variables[key]?.message}</p>}
                             </div>
                         ))}
 
-                        <div className="flex justify-end">
-                            <button
-                                type="submit"
-                                className="bg-[#6D28D9] text-white px-4 py-2 rounded-md mr-2"
-                                disabled={loading}
-                            >
-                                {contact ? "Actualizar" : "Crear"}
-                            </button>
-                            <button
-                                onClick={() => onClose()}
-                                className="bg-red-500 text-white px-4 py-2 rounded-md"
-                            >
+                        <div className="mt-2 flex justify-end gap-2">
+                            <button type="button" onClick={() => onClose()} className="g-btn-text">
                                 Cancelar
+                            </button>
+                            <button type="submit" className="g-btn-primary" disabled={loading}>
+                                {contact ? "Guardar cambios" : "Crear contacto"}
                             </button>
                         </div>
                     </form>

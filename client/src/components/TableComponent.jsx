@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useContact } from '../context/ContactContext';
 import { useGroup } from "../context/GroupContext";
-import { PlusCircleIcon, PencilIcon, TrashIcon } from '@heroicons/react/solid';
+import { Icon } from './ui';
 import CreateGroupModal from './CreateGroupModal';
 import CreateEditContactModal from './CreateEditContactModal';
 
@@ -115,15 +115,31 @@ function TableComponent() {
     const isDisabled = groups.length === 0;
 
     return (
-        <div className="relative overflow-x-auto">
-            <div className="flex flex-col sm:flex-row sm:justify-between mb-4">
-                <div className="flex space-x-2">
-                    <button
-                        type="button"
-                        onClick={openModalGroupNew}
-                        className="flex items-center justify-center mb-2 sm:mb-0 rounded-md bg-[#6D28D9] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[#5B21B6] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+        <div>
+            <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
+                    <label htmlFor="group-select" className="text-sm text-fg-2">Grupo</label>
+                    <select
+                        id="group-select"
+                        onChange={onGroupChange}
+                        value={selectedGroup}
+                        className="g-select h-11 sm:w-72"
                     >
-                        <PlusCircleIcon className="h-5 w-5 mr-2" />
+                        {groups.length > 0 ? (
+                            groups.map(group => (
+                                <option key={group._id} value={group._id}>{group.groupName}</option>
+                            ))
+                        ) : (
+                            <option value="" disabled>No hay grupos</option>
+                        )}
+                    </select>
+                    {selectedGroup && (
+                        <span className="g-chip">{filteredContacts.length} contacto(s)</span>
+                    )}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                    <button type="button" onClick={openModalGroupNew} className="g-btn-tonal">
+                        <Icon name="group_add" size={20} />
                         Nuevo grupo
                     </button>
                     <button
@@ -131,104 +147,91 @@ function TableComponent() {
                         onClick={openCreateModal}
                         disabled={filteredContacts.length <= 0}
                         title={isDisabled ? tooltipMessage : ""}
-                        className={`flex items-center justify-center mb-2 sm:mb-0 rounded-md px-4 py-2 text-sm font-semibold text-white shadow-sm ${filteredContacts.length <= 0 ? 'bg-gray-400 cursor-not-allowed' : 'bg-[#4CAF50] hover:bg-[#388E3C]'} focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${filteredContacts.length <= 0 ? 'focus-visible:outline-gray-400' : 'focus-visible:outline-green-600'}`}
+                        className="g-btn-tonal"
                     >
-                        <PlusCircleIcon className="h-5 w-5 mr-2" />
+                        <Icon name="person_add" size={20} />
                         Nuevo contacto
                     </button>
                 </div>
-
-                {isModalGroupNewOpen && (
-                    <CreateGroupModal
-                        onClose={closeModalGroupNew}
-                    />
-                )}
-
-
-                {isModalOpen && (
-                    <CreateEditContactModal
-                        contact={contactData}
-                        groupId={groupIdForForm}
-                        variableKeys={variableKeys}
-                        onClose={closeModal}
-                    />
-                )}
-
-                <select
-                    onChange={onGroupChange}
-                    value={selectedGroup}
-                    className="bg-[#F2F2DC] text-[#333333] p-2 rounded transition duration-200 ease-in-out focus:ring-2 focus:ring-[#6D28D9] focus:outline-none"
-                >
-                    {groups.length > 0 ? (
-                        groups.map(group => (
-                            <option key={group._id} value={group._id}>{group.groupName}</option>
-                        ))
-                    ) : (
-                        <option value="" disabled>No hay grupos</option>
-                    )}
-                </select>
             </div>
 
-            <table className="min-w-full divide-y divide-[#F2F2F2]/50">
-                <thead className="bg-[#6D28D9] text-[#F2F2DC]">
-                    <tr>
-                        <th className="px-4 py-2 text-left text-xs font-bold uppercase tracking-wider">Nombre</th>
-                        <th className="px-4 py-2 text-left text-xs font-bold uppercase tracking-wider">Número</th>
-                        {variableKeys.map(key => (
-                            <th key={key} className="px-4 py-2 text-left text-xs font-bold uppercase tracking-wider">{key}</th>
-                        ))}
-                        <th className="px-4 py-2 text-center text-xs font-bold uppercase tracking-wider">Acciones</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {filteredContacts.length > 0 ? (
-                        filteredContacts.map((contact) => (
-                            <tr key={contact._id}>
-                                <td className="px-4 py-2 text-sm font-medium text-[#F2F2DC]">{contact.name || '-'}</td>
-                                <td className="px-4 py-2 text-sm text-[#F2F2DC]">{contact.phoneNumber || '-'}</td>
-                                {variableKeys.map(key => (
-                                    <td key={key} className="px-4 py-2 text-sm text-[#F2F2DC]">
-                                        {contact.variables && contact.variables[key] ? contact.variables[key] : '-'}
+            {groupData?.description && (
+                <p className="-mt-2 mb-4 text-sm text-muted">{groupData.description}</p>
+            )}
+
+            {isModalGroupNewOpen && (
+                <CreateGroupModal
+                    onClose={closeModalGroupNew}
+                />
+            )}
+
+            {isModalOpen && (
+                <CreateEditContactModal
+                    contact={contactData}
+                    groupId={groupIdForForm}
+                    variableKeys={variableKeys}
+                    onClose={closeModal}
+                />
+            )}
+
+            <div className="overflow-x-auto rounded-2xl border border-line bg-bg">
+                <table className="min-w-full text-left text-sm">
+                    <thead className="bg-surface-2 text-fg-2">
+                        <tr>
+                            <th className="px-4 py-3 font-medium">Nombre</th>
+                            <th className="px-4 py-3 font-medium">Número</th>
+                            {variableKeys.map(key => (
+                                <th key={key} className="px-4 py-3 font-medium">{key}</th>
+                            ))}
+                            <th className="px-4 py-3 text-right font-medium">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-line">
+                        {filteredContacts.length > 0 ? (
+                            filteredContacts.map((contact) => (
+                                <tr key={contact._id} className="transition-colors hover:bg-surface">
+                                    <td className="px-4 py-3 font-medium text-fg">{contact.name || '-'}</td>
+                                    <td className="px-4 py-3 font-mono text-fg-2">{contact.phoneNumber || '-'}</td>
+                                    {variableKeys.map(key => (
+                                        <td key={key} className="px-4 py-3 text-fg-2">
+                                            {contact.variables && contact.variables[key] ? contact.variables[key] : '-'}
+                                        </td>
+                                    ))}
+                                    <td className="px-2 py-1 text-right">
+                                        <div className="flex justify-end">
+                                            <button className="g-icon-btn" onClick={() => openEditModal(contact)} aria-label={`Editar ${contact.name}`} title="Editar">
+                                                <Icon name="edit" size={20} />
+                                            </button>
+                                            <button className="g-icon-btn hover:text-[var(--danger)]" onClick={() => handleDeleteClick(contact)} aria-label={`Eliminar ${contact.name}`} title="Eliminar">
+                                                <Icon name="delete" size={20} />
+                                            </button>
+                                        </div>
                                     </td>
-                                ))}
-                                <td className="px-4 py-2 text-center text-sm text-[#F2F2DC]">
-                                    <div className="flex justify-center items-center space-x-2">
-                                        <button onClick={() => openEditModal(contact)}>
-                                            <PencilIcon className="h-5 w-5 text-[#F2F2DC] hover:text-[#b88efd]" />
-                                        </button>
-                                        <button onClick={() => handleDeleteClick(contact)}>
-                                            <TrashIcon className="h-5 w-5 text-[#F2F2DC] hover:text-[#b88efd]" />
-                                        </button>
-                                    </div>
+                                </tr>
+                            ))
+                        ) : (
+                            <tr>
+                                <td colSpan={3 + variableKeys.length} className="px-4 py-12 text-center text-muted">
+                                    <Icon name="person_off" size={36} className="mb-2 block text-muted" />
+                                    No hay contactos en este grupo. Importa un Excel para empezar.
                                 </td>
                             </tr>
-                        ))
-                    ) : (
-                        <tr>
-                            <td colSpan={4 + variableKeys.length} className="px-4 py-2 text-center text-sm text-[#F2F2DC]">No hay contactos</td>
-                        </tr>
-                    )}
-                </tbody>
-            </table>
+                        )}
+                    </tbody>
+                </table>
+            </div>
 
             {showConfirm && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-                    <div className="bg-[#F2F2DC] p-6 rounded-lg shadow-lg w-full max-w-md">
-                        <h3 className="text-lg font-semibold text-[#141414]">Confirmar Eliminación</h3>
-                        <p className="text-[#141414] mt-2">¿Estás seguro de que deseas eliminar este contacto?</p>
-                        <div className="flex justify-end gap-4 mt-4">
-                            <button
-                                onClick={confirmDelete}
-                                className="bg-[#6D28D9] text-white px-4 py-2 rounded-md hover:bg-[#5B21B6]"
-                            >
-                                Sí
-                            </button>
-                            <button
-                                onClick={cancelDelete}
-                                className="bg-[#F2F2DC] text-[#141414] px-4 py-2 rounded-md hover:bg-[#D1D1D1]"
-                            >
-                                No
-                            </button>
+                <div className="g-backdrop">
+                    <div className="g-dialog">
+                        <Icon name="delete" size={28} className="text-[var(--danger)]" />
+                        <h3 className="mt-3 text-xl text-fg">¿Eliminar contacto?</h3>
+                        <p className="mt-2 text-fg-2">
+                            Se eliminará <strong>{contactToDelete?.name}</strong> ({contactToDelete?.phoneNumber}) de este grupo.
+                        </p>
+                        <div className="mt-6 flex justify-end gap-2">
+                            <button onClick={cancelDelete} className="g-btn-text">Cancelar</button>
+                            <button onClick={confirmDelete} className="g-btn-danger">Eliminar</button>
                         </div>
                     </div>
                 </div>

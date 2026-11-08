@@ -1,4 +1,5 @@
 import Credential from '../models/credential.model.js';
+import { appendExecutionResults } from './execution.controller.js';
 import {
     buildTemplatePayload,
     fetchTemplates,
@@ -36,7 +37,7 @@ export const getTemplates = async (req, res) => {
 };
 
 export const sendMessagesByTemplateAndListContacts = async (req, res) => {
-    const { template, recipientList } = req.body;
+    const { template, recipientList, executionId } = req.body;
 
     if (!template?.name || !Array.isArray(template.components)) {
         return res.status(400).json({ message: 'Plantilla inválida' });
@@ -68,6 +69,12 @@ export const sendMessagesByTemplateAndListContacts = async (req, res) => {
                 return { phone, state: 'warning', description: error.message };
             }
         });
+
+        // Guarda el resultado del lote en el historial (si el envío está registrado)
+        if (executionId) {
+            await appendExecutionResults(executionId, req.user.id, results)
+                .catch((error) => console.error('No se pudo guardar el historial del lote:', error));
+        }
 
         res.json({ results });
     } catch (error) {

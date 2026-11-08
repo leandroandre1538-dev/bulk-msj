@@ -4,6 +4,7 @@ import ImportModal from '../components/ImportModal';
 import { useContact } from '../context/ContactContext';
 import TableComponent from '../components/TableComponent';
 import { useGroup } from "../context/GroupContext";
+import { Alert, Icon, PageHeader } from '../components/ui';
 
 function ContactsPage() {
     const { user } = useAuth();
@@ -39,55 +40,31 @@ function ContactsPage() {
                     onConfirm={handleModalConfirm}
                 />
             )}
-            <div className="lg:flex lg:items-center lg:justify-between h-auto max-h-screen">
-                <div className="min-w-0 flex-1">
-                    <h2 className="text-2xl font-bold leading-7 text-[#F2F2DC] sm:truncate sm:text-3xl sm:tracking-tight">
-                        Contactos
-                    </h2>
-                    <div className="mt-1 flex flex-col sm:mt-0 sm:flex-row sm:flex-wrap sm:space-x-6">
-                        <div className="mt-2 flex items-center text-sm text-[#7A7A7A]">
-                            Hola {user.firstName} {user.lastName}, aquí puedes gestionar la lista de contactos a los cuales será enviado el mensaje masivo.
-                        </div>
-                    </div>
-                </div>
-            </div>
 
-            <div className="flex flex-col flex-1 items-center justify-center py-6 px-4">
-                <div className="bg-[#141414] w-full p-10 rounded-lg shadow-lg">
-                    <div className="md:flex md:items-center md:justify-between">
-                        <div className="min-w-0 flex-1">
-                            <h2 className="text-xl font-bold leading-7 text-[#F2F2DC] sm:truncate sm:text-2xl sm:tracking-tight">
-                                Lista de Contactos
-                            </h2>
-                        </div>
-                        <div className="flex flex-col md:flex-row md:space-x-4">
-                            <button
-                                type="button"
-                                onClick={handleImportClick}
-                                disabled={isDisabled}
-                                title={isDisabled ? tooltipMessage : ""}
-                                className={`mb-3 md:mb-0 inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-semibold text-white shadow-sm w-full lg:w-auto ${isDisabled ? "bg-gray-500 cursor-not-allowed" : "bg-[#6D28D9] hover:bg-[#5B21B6]"}`}
-                            >
-                                <span>Importar</span>
-                            </button>
-                            <button
-                                type="button"
-                                disabled={isDisabled}
-                                title={isDisabled ? tooltipMessage : ""}
-                                className={`mb-3 md:mb-0 inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-semibold text-white shadow-sm w-full lg:w-auto ${isDisabled ? "bg-gray-500 cursor-not-allowed" : "bg-[#6D28D9] hover:bg-[#5B21B6]"}`}
-                            >
-                                <span>Exportar</span>
-                            </button>
-                        </div>
-                    </div>
+            <PageHeader
+                title="Contactos"
+                subtitle={`Hola ${user.firstName}, organiza aquí los grupos y contactos que recibirán tus envíos.`}
+                actions={
+                    <button
+                        type="button"
+                        onClick={handleImportClick}
+                        disabled={isDisabled}
+                        title={isDisabled ? tooltipMessage : ""}
+                        className="g-btn-primary"
+                    >
+                        <Icon name="upload_file" size={20} />
+                        Importar Excel
+                    </button>
+                }
+            />
 
-                    <div className="border-b border-[#F2F2F2]/20 p-2 mt-4"></div>
+            {isDisabled && (
+                <Alert type="info" className="mb-4">Primero crea un grupo con el botón «Nuevo grupo» y luego importa tu Excel.</Alert>
+            )}
 
-                    <div className="mt-4">
-                        <TableComponent/>
-                    </div>
-                </div>
-            </div>
+            <section className="g-card">
+                <TableComponent />
+            </section>
         </>
     );
 }

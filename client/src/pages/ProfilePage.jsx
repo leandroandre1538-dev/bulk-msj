@@ -2,12 +2,13 @@ import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getWhatsAppStatusRequest } from '../api/credential';
+import { Alert, Icon, PageHeader, Spinner } from '../components/ui';
 
 const LEVEL_STYLES = {
-    error: { box: 'bg-red-500/15 border-red-500/60', dot: 'bg-red-500', label: 'Error' },
-    warning: { box: 'bg-yellow-500/15 border-yellow-500/60', dot: 'bg-yellow-400', label: 'Atención' },
-    ok: { box: 'bg-green-500/15 border-green-500/60', dot: 'bg-green-500', label: 'OK' },
-    info: { box: 'bg-[#6D28D9]/15 border-[#6D28D9]/60', dot: 'bg-[#8B5CF6]', label: 'Info' }
+    error: { box: 'g-alert-error', icon: 'error', label: 'Error' },
+    warning: { box: 'g-alert-warning', icon: 'warning', label: 'Atención' },
+    ok: { box: 'g-alert-success', icon: 'check_circle', label: 'OK' },
+    info: { box: 'g-alert-info', icon: 'info', label: 'Info' }
 };
 
 const LIMIT_TIERS = {
@@ -23,17 +24,17 @@ const formatDate = (value) =>
 function Field({ label, value, mono = false }) {
     return (
         <div className="py-2">
-            <dt className="text-xs uppercase tracking-wide text-[#7A7A7A]">{label}</dt>
-            <dd className={`mt-1 text-[#F2F2DC] break-all ${mono ? 'font-mono text-sm' : ''}`}>{value ?? '—'}</dd>
+            <dt className="text-xs uppercase tracking-wide text-muted">{label}</dt>
+            <dd className={`mt-1 text-fg break-all ${mono ? 'font-mono text-sm' : ''}`}>{value ?? '—'}</dd>
         </div>
     );
 }
 
 function Card({ title, children, action }) {
     return (
-        <section className="bg-[#141414] p-6 rounded-lg">
-            <div className="flex items-center justify-between mb-3 gap-4">
-                <h3 className="text-lg font-semibold text-[#F2F2DC]">{title}</h3>
+        <section className="g-card">
+            <div className="flex items-center justify-between mb-4 gap-4">
+                <h3 className="g-section-title">{title}</h3>
                 {action}
             </div>
             {children}
@@ -45,7 +46,8 @@ function ModeBadge({ mode }) {
     if (!mode) return null;
     const isTest = mode === 'SANDBOX';
     return (
-        <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${isTest ? 'bg-yellow-400 text-black' : 'bg-green-500 text-white'}`}>
+        <span className={`g-chip ${isTest ? 'bg-[var(--warning-bg)] text-[var(--warning)]' : 'bg-[var(--success-bg)] text-[var(--success)]'}`}>
+            <Icon name={isTest ? 'science' : 'verified'} size={16} />
             {isTest ? 'Número de prueba (sandbox)' : 'Producción'}
         </span>
     );
@@ -79,13 +81,11 @@ function ProfilePage() {
     const token = status?.token;
 
     return (
-        <div className="space-y-6">
-            <div>
-                <h2 className="text-2xl font-bold leading-7 text-[#F2F2DC] sm:text-3xl sm:tracking-tight">Perfil</h2>
-                <p className="mt-2 text-sm text-[#7A7A7A]">
-                    Datos de tu usuario y estado de la cuenta de WhatsApp según las credenciales guardadas en Configuración.
-                </p>
-            </div>
+        <div className="space-y-4">
+            <PageHeader
+                title="Perfil"
+                subtitle="Tus datos y el estado de la cuenta de WhatsApp según las credenciales guardadas en Configuración."
+            />
 
             <Card title="Usuario">
                 <dl className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6">
@@ -103,35 +103,36 @@ function ProfilePage() {
                         type="button"
                         onClick={loadStatus}
                         disabled={loading}
-                        className={`rounded-md bg-[#6D28D9] px-3 py-2 text-sm font-semibold text-white hover:bg-[#5B21B6] ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        className="g-btn-tonal"
                     >
+                        <Icon name="refresh" size={20} />
                         {loading ? 'Consultando…' : 'Volver a verificar'}
                     </button>
                 }
             >
-                {error && <div className="bg-red-500 text-white p-3 rounded-md">{error}</div>}
+                {error && <Alert type="error">{error}</Alert>}
 
                 {!loading && status && !status.configured && (
-                    <p className="text-[#F2F2DC]">
+                    <p className="text-fg">
                         Aún no configuraste tus credenciales.{' '}
-                        <Link to="/settings" className="text-[#A78BFA] underline">Ir a Configuración</Link>
+                        <Link to="/settings" className="text-accent underline">Ir a Configuración</Link>
                     </p>
                 )}
 
-                {loading && !status && <p className="text-[#7A7A7A]">Consultando a Meta…</p>}
+                {loading && !status && <div className="flex items-center gap-3 text-muted"><Spinner className="h-6 w-6" /> Consultando a Meta…</div>}
 
                 {status?.configured && (
                     <div className="space-y-6">
                         {/* Diagnóstico */}
                         <div>
-                            <h4 className="text-sm uppercase tracking-wide text-[#7A7A7A] mb-2">Diagnóstico</h4>
+                            <h4 className="text-sm uppercase tracking-wide text-muted mb-2">Diagnóstico</h4>
                             <ul className="space-y-2">
                                 {status.diagnostics.map((item, index) => {
                                     const style = LEVEL_STYLES[item.level] || LEVEL_STYLES.info;
                                     return (
-                                        <li key={index} className={`flex gap-3 items-start border rounded-md p-3 ${style.box}`}>
-                                            <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${style.dot}`} aria-hidden="true" />
-                                            <span className="text-[#F2F2DC] text-sm">
+                                        <li key={index} className={style.box}>
+                                            <Icon name={style.icon} size={20} className="mt-px shrink-0" />
+                                            <span>
                                                 <strong className="mr-1">{style.label}:</strong>{item.message}
                                             </span>
                                         </li>
@@ -143,11 +144,11 @@ function ProfilePage() {
                         {/* Número */}
                         <div>
                             <div className="flex flex-wrap items-center gap-3 mb-1">
-                                <h4 className="text-sm uppercase tracking-wide text-[#7A7A7A]">Número de envío</h4>
+                                <h4 className="text-sm uppercase tracking-wide text-muted">Número de envío</h4>
                                 <ModeBadge mode={phone?.account_mode} />
                             </div>
                             {status.errors?.phone ? (
-                                <p className="text-red-400 text-sm">{status.errors.phone}</p>
+                                <p className="text-[var(--danger)] text-sm">{status.errors.phone}</p>
                             ) : (
                                 <dl className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6">
                                     <Field label="Número" value={phone?.display_phone_number} />
@@ -164,9 +165,9 @@ function ProfilePage() {
 
                         {/* WABA */}
                         <div>
-                            <h4 className="text-sm uppercase tracking-wide text-[#7A7A7A] mb-1">Cuenta de WhatsApp Business (WABA)</h4>
+                            <h4 className="text-sm uppercase tracking-wide text-muted mb-1">Cuenta de WhatsApp Business (WABA)</h4>
                             {status.errors?.waba ? (
-                                <p className="text-red-400 text-sm">{status.errors.waba}</p>
+                                <p className="text-[var(--danger)] text-sm">{status.errors.waba}</p>
                             ) : (
                                 <dl className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6">
                                     <Field label="Nombre" value={waba?.name} />
@@ -182,7 +183,7 @@ function ProfilePage() {
 
                         {/* Token */}
                         <div>
-                            <h4 className="text-sm uppercase tracking-wide text-[#7A7A7A] mb-1">Token de acceso</h4>
+                            <h4 className="text-sm uppercase tracking-wide text-muted mb-1">Token de acceso</h4>
                             <dl className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6">
                                 <Field label="Token" value={status.credential.tokenPreview} mono />
                                 <Field label="Tipo" value={token?.type} />
@@ -192,13 +193,13 @@ function ProfilePage() {
                             {token?.scopes?.length > 0 && (
                                 <div className="mt-2 flex flex-wrap gap-2">
                                     {token.scopes.map((scope) => (
-                                        <span key={scope} className="rounded bg-[#262626] px-2 py-1 text-xs font-mono text-[#F2F2DC]">{scope}</span>
+                                        <span key={scope} className="rounded bg-surface-2 px-2 py-1 text-xs font-mono text-fg">{scope}</span>
                                     ))}
                                 </div>
                             )}
                         </div>
 
-                        <p className="text-xs text-[#7A7A7A]">
+                        <p className="text-xs text-muted">
                             Credenciales actualizadas: {formatDate(status.credential.updatedAt)}.
                             Meta no permite consultar por API la lista de números de prueba; si el número es de prueba,
                             revisa esa lista en developers.facebook.com → tu app → WhatsApp → API Setup.

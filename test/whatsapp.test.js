@@ -268,3 +268,52 @@ test('API: estado de la cuenta de WhatsApp (modo prueba) sin exponer el token', 
     assert.ok(data.diagnostics.some((x) => x.level === 'ok' && /permanente/.test(x.message)));
     assert.ok(data.diagnostics.some((x) => /método de pago/.test(x.message)));
 });
+
+test('API: historial de envíos registra la ejecución y el resultado de cada lote', async () => {
+    const { default: Execution } = await import('../src/models/execution.model.js');
+    const EXEC_ID = new mongoose.Types.ObjectId().toString();
+    const updates = [];
+    Execution.create = async (doc) => ({ _id: EXEC_ID, ...doc });
+    Execution.updateOne = async (filter, update) => { updates.push({ filter, update }); return { modifiedCount: 1 }; };
+    Execution.findOneAndUpdate = async (filter, update) => ({ _id: filter._id, ...update });
+
+    // 1) Se crea la ejecución
+    let res = await realFetch(`${baseUrl}/api/executions`, {
+        method: 'POST',
+        headers: { cookie, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ templateName: 'promo_cliente', templateLanguage: 'es', groupId: GROUP_ID, total: 2 })
+    });
+    assert.equal(res.status, 201);
+    assert.equal((await res.json())._id, EXEC_ID);
+
+    // 2) El envío con executionId guarda los resultados del lote
+    const variables = { header: ['Ana'], body: ['Ana', '300'], buttons: ['abc'] };
+    res = await realFetch(`${baseUrl}/api/templates/sendMessages`, {
+        method: 'POST',
+        headers: { cookie, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ template, executionId: EXEC_ID, recipientList: [{ number: '51987654321', variables }, { number: '51999999999', variables }] })
+    });
+    assert.equal(res.status, 200);
+    assert.equal(updates.length, 1);
+    assert.equal(updates[0].filter._id, EXEC_ID);
+    assert.equal(updates[0].filter.userId, USER_ID);
+    assert.deepEqual(updates[0].update.$inc, { successCount: 1, failedCount: 1 });
+    assert.equal(updates[0].update.$push.results.$each.length, 2);
+
+    // 3) Al terminar se guardan los lotes que no llegaron al servidor y se marca como completado
+    res = await realFetch(`${baseUrl}/api/executions/${EXEC_ID}/finish`, {
+        method: 'PATCH',
+        headers: { cookie, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ extraResults: [{ phone: '51911111111', state: 'warning', description: 'Network Error' }] })
+    });
+    const finished = await res.json();
+    assert.equal(res.status, 200);
+    assert.equal(finished.status, 'completed');
+    assert.equal(updates.length, 2);
+    assert.deepEqual(updates[1].update.$inc, { successCount: 0, failedCount: 1 });
+});
+
+test('API: historial con id inválido responde 404', async () => {
+    const res = await realFetch(`${baseUrl}/api/executions/no-es-un-id`, { headers: { cookie } });
+    assert.equal(res.status, 404);
+});

@@ -3,11 +3,11 @@ import morgan from "morgan";
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import authRoutes from "./routes/auth.routes.js";
-import taskRouters from "./routes/task.routes.js";
 import templateRoutes from './routes/template.routes.js';
 import credentialRoutes from './routes/credential.routes.js';
 import contactRoutes from './routes/contact.routes.js';
 import groupRoutes from './routes/group.routes.js';
+import executionRoutes from './routes/execution.routes.js';
 import { connectDB } from "./db.js";
 
 const app = express();
@@ -39,10 +39,10 @@ app.use('/api', async (req, res, next) => {
 });
 
 app.use('/api', authRoutes);
-app.use('/api', taskRouters);
 app.use('/api/templates', templateRoutes);
 app.use('/api', credentialRoutes);
 app.use('/api', contactRoutes);
 app.use('/api', groupRoutes);
+app.use('/api', executionRoutes);
 
 export default app;

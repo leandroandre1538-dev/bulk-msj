@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import LoaderGeneral from './LoaderGeneral'; // Asegúrate de que la ruta sea correcta
 import { useGroup } from "../context/GroupContext";
+import { Alert, Icon } from "./ui";
 
 const ImportModal = ({ onClose, onConfirm }) => {
     const [groupId, setGroupId] = useState("");
@@ -45,53 +46,55 @@ const ImportModal = ({ onClose, onConfirm }) => {
 
     return (
         <>
-            {loading && <LoaderGeneral />} {/* Mostrar el loader si `loading` es verdadero */}
-            <div className={`fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-40 p-4 sm:p-0 ${loading ? 'pointer-events-none' : ''}`}>
-                <div className="bg-[#141414] rounded-lg p-6 shadow-lg max-w-sm w-full z-30"> {/* Asegúrate de que el z-index del modal sea menor que el del loader */}
-                    <h2 className="text-xl font-semibold text-[#F2F2DC] mb-4">Importar Contactos</h2>
-                    {error && (
-                        <div className="bg-red-500 text-white p-2 rounded-md mb-4 text-center">
-                            {error}
+            {loading && <LoaderGeneral />}
+            <div className={`g-backdrop ${loading ? 'pointer-events-none' : ''}`}>
+                <div className="g-dialog">
+                    <Icon name="upload_file" size={28} className="text-accent" />
+                    <h2 className="mt-3 text-2xl text-fg">Importar contactos</h2>
+                    <p className="mt-2 mb-5 text-sm text-fg-2">
+                        El Excel necesita una columna <strong>Número</strong> (con código de país, ej. 51987654321) y, opcionalmente,
+                        <strong> Nombre</strong>. Las demás columnas se guardan como variables para la plantilla.
+                    </p>
+
+                    {error && <Alert type="error" className="mb-4">{error}</Alert>}
+                    {success && <Alert type="success" className="mb-4">{success}</Alert>}
+
+                    <div className="flex flex-col gap-4">
+                        <div>
+                            <label className="g-label" htmlFor="import-group">Grupo de destino</label>
+                            <select id="import-group" onChange={onGroupChange} className="g-select" defaultValue="">
+                                <option value="">Selecciona un grupo</option>
+                                {groups.length > 0 ? (
+                                    groups.map(group => (
+                                        <option key={group._id} value={group._id}>{group.groupName}</option>
+                                    ))
+                                ) : (
+                                    <option value="" disabled>No hay grupos</option>
+                                )}
+                            </select>
                         </div>
-                    )}
-                    {success && (
-                        <div className="bg-green-500 text-white p-2 rounded-md mb-4 text-center">
-                            {success}
-                        </div>
-                    )}
-                    <p className="text-[#F2F2DC] mb-2">Seleccione un grupo para estos contactos:</p>
-                    <select
-                        onChange={onGroupChange}
-                        className="w-full p-2 bg-[#F2F2DC] text-[#333333] rounded mb-4 transition duration-200 ease-in-out focus:ring-2 focus:ring-[#6D28D9] focus:outline-none"
-                    >
-                        <option value="">Seleccionar un grupo</option>
-                        {groups.length > 0 ? (
-                            groups.map(group => (
-                                <option key={group._id} value={group._id}>{group.groupName}</option>
-                            ))
-                        ) : (
-                            <option value="" disabled>No hay grupos</option>
-                        )}
-                    </select>
-                    <input
-                        type="file"
-                        className="w-full p-2 bg-[#333333] text-[#F2F2DC] rounded-md mb-4 focus:outline-none focus:ring-2 focus:ring-[#6D28D9] transition duration-200 ease-in-out"
-                        accept=".xlsx, .xls"
-                        onChange={(e) => setFile(e.target.files[0])}
-                    />
-                    <div className="flex justify-end mt-4">
-                        <button
-                            onClick={handleConfirm}
-                            className="bg-[#6D28D9] text-white px-4 py-2 rounded-md mr-2 hover:bg-[#5B21B6] transition duration-200 ease-in-out"
-                            disabled={loading} // Desactiva el botón mientras se carga
+
+                        <label
+                            htmlFor="import-file"
+                            className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-line bg-bg px-4 py-8 text-center transition-colors hover:border-[var(--accent)]"
                         >
-                            Continuar
-                        </button>
-                        <button
-                            onClick={onClose}
-                            className="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition duration-200 ease-in-out"
-                        >
-                            Cancelar
+                            <Icon name={file ? "description" : "cloud_upload"} size={32} className="text-accent" />
+                            <span className="text-sm text-fg">{file ? file.name : "Haz clic para elegir un archivo .xlsx o .xls"}</span>
+                            <span className="text-xs text-muted">Máximo 4 MB</span>
+                            <input
+                                id="import-file"
+                                type="file"
+                                className="sr-only"
+                                accept=".xlsx, .xls"
+                                onChange={(e) => setFile(e.target.files[0])}
+                            />
+                        </label>
+                    </div>
+
+                    <div className="mt-6 flex justify-end gap-2">
+                        <button onClick={onClose} className="g-btn-text">Cancelar</button>
+                        <button onClick={handleConfirm} className="g-btn-primary" disabled={loading}>
+                            Importar
                         </button>
                     </div>
                 </div>

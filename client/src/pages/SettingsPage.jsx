@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useCredential } from "../context/CredentialContext";
+import { Link } from "react-router-dom";
+import { Icon, PageHeader } from "../components/ui";
 
 function SettingsPage() {
     const { user } = useAuth();
@@ -67,117 +69,69 @@ function SettingsPage() {
         }
     };
 
+    const fields = [
+        { id: 'wabId', label: 'WABA ID', help: 'WhatsApp Business Account ID (Meta → WhatsApp → API Setup).', value: wabId, set: setWabId, placeholder: 'Ej. 102345678901234' },
+        { id: 'phoneId', label: 'Phone number ID', help: 'Es un ID largo, no el número de teléfono.', value: phoneId, set: setPhoneId, placeholder: 'Ej. 109876543210987' },
+        { id: 'tokenAccess', label: 'Token de acceso', help: 'Usa un token permanente de usuario del sistema; el temporal caduca en 24 h.', value: tokenAccess, set: setTokenAccess, placeholder: 'EAAG…' },
+    ];
+
     return (
         <>
-            <div className="lg:flex lg:items-center lg:justify-between h-auto max-h-screen">
-                <div className="min-w-0 flex-1">
-                    <h2 className="text-2xl font-bold leading-7 text-[#F2F2DC] sm:truncate sm:text-3xl sm:tracking-tight">
-                        Configuración
-                    </h2>
-                    <div className="mt-1 flex flex-col sm:mt-0 sm:flex-row sm:flex-wrap sm:space-x-6">
-                        <div className="mt-2 flex items-center text-sm text-[#7A7A7A]">
-                            Hola {user.firstName} {user.lastName}, aquí podrás realizar configuraciones sobre tu cuenta.
-                        </div>
+            <PageHeader
+                title="Configuración"
+                subtitle={`Hola ${user.firstName}, aquí conectas tu cuenta de WhatsApp Business.`}
+            />
+
+            <section className="g-card max-w-3xl">
+                <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                        <h2 className="g-section-title flex items-center gap-2"><Icon name="key" size={22} className="text-accent" /> Credenciales de WhatsApp</h2>
+                        <p className="mt-1 text-sm text-muted">
+                            {updatedAtCredential ? `Última actualización: ${updatedAtCredential.split('T')[0]}` : 'Aún no has guardado credenciales.'}
+                        </p>
+                    </div>
+                    <div className="flex gap-2">
+                        {!isEditing ? (
+                            <button type="button" className="g-btn-tonal" onClick={handleEditClick}>
+                                <Icon name="edit" size={20} /> Editar
+                            </button>
+                        ) : (
+                            <button type="button" className="g-btn-primary" onClick={handleSaveClick}>
+                                <Icon name="save" size={20} /> Guardar cambios
+                            </button>
+                        )}
                     </div>
                 </div>
-            </div>
 
-            <div className="flex h-auto max-h-screen items-center justify-center py-6">
-                <div className="bg-[#141414] w-full max-w p-10 rounded-lg shadow-lg">
-                    <div className="md:flex md:items-center md:justify-between">
-                        <div className="min-w-0 flex-1">
-                            <h2 className="text-xl font-bold leading-7 text-[#F2F2DC] sm:truncate sm:text-2xl sm:tracking-tight">
-                                Credenciales
-                            </h2>
-                            <div className="mt-1 flex flex-col sm:mt-0 sm:flex-row sm:flex-wrap sm:space-x-6">
-                                <div className="mt-2 flex items-center text-sm text-[#7A7A7A]">
-                                    Última actualización: { updatedAtCredential.split('T')[0] }. 
-                                </div>
-                            </div>
-                        </div>
-                        <div className="mt-5 flex flex-col md:flex-row md:space-x-4">
-                            <button
-                                type="button"
-                                className="mb-3 md:mb-0 inline-flex items-center justify-center rounded-md bg-[#6D28D9] px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[#5B21B6] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 w-full lg:w-auto"
-                                onClick={handleEditClick}
-                            >
-                                <span>Editar</span>
-                            </button>
-                            <button
-                                type="button"
-                                className={`inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-semibold text-white shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 w-full lg:w-auto ${isEditing ? 'bg-[#6D28D9] hover:bg-[#5B21B6] focus-visible:outline-indigo-600' : 'bg-gray-400 cursor-not-allowed'}`}
-                                onClick={handleSaveClick}
+                <div className="flex flex-col gap-5">
+                    {fields.map((field) => (
+                        <div key={field.id}>
+                            <label htmlFor={field.id} className="g-label">{field.label}</label>
+                            <input
+                                id={field.id}
+                                type="text"
+                                className={`g-input font-mono text-sm ${errors[field.id] ? '!border-[var(--danger)]' : ''}`}
+                                placeholder={field.placeholder}
+                                value={field.value}
+                                onChange={handleInputChange(field.set)}
                                 disabled={!isEditing}
-                            >
-                                <span>Guardar cambios</span>
-                            </button>
+                                autoComplete="off"
+                                spellCheck={false}
+                            />
+                            {errors[field.id]
+                                ? <p className="g-field-error">Este campo es obligatorio.</p>
+                                : <p className="mt-1 text-xs text-muted">{field.help}</p>}
                         </div>
-                    </div>
-
-                    <div className="border-b border-[#F2F2F2]/20 p-2"></div>
-                    <div className="pt-4 md:flex md:items-center md:justify-normal">
-                        <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-6">
-                            <div className="col-span-full">
-                                <label htmlFor="wabId" className="block text-sm font-medium leading-6 text-[#F2F2F2]">
-                                    Identificador de la cuenta de WhatsApp Business
-                                </label>
-                                <div className="mt-2 relative group">
-                                    <input
-                                        type="text"
-                                        className={`w-full lg:w-[750px] bg-[#FFFFFF] text-[#333333] px-4 py-2 rounded-md my-2 placeholder-[#9CA3AF] ${errors.wabId ? 'border border-red-500' : ''}`}
-                                        placeholder="Ingrese el wab ID"
-                                        value={wabId}
-                                        onChange={handleInputChange(setWabId)}
-                                        disabled={!isEditing}
-                                    />
-                                    {errors.wabId && <p className="text-red-500 text-sm">Este campo es obligatorio, siga el formato.</p>}
-                                    {!isEditing && <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 text-white text-sm rounded-md opacity-0 group-hover:opacity-100">
-                                        Primero debe habilitar 'Editar'
-                                    </div>}
-                                </div>
-                            </div>
-                            <div className="col-span-full">
-                                <label htmlFor="phoneId" className="block text-sm font-medium leading-6 text-[#F2F2F2]">
-                                    Identificador del número de teléfono
-                                </label>
-                                <div className="mt-2 relative group">
-                                    <input
-                                        type="text"
-                                        className={`w-full lg:w-[750px] bg-[#FFFFFF] text-[#333333] px-4 py-2 rounded-md my-2 placeholder-[#9CA3AF] ${errors.phoneId ? 'border border-red-500' : ''}`}
-                                        placeholder="Ingrese el phone ID"
-                                        value={phoneId}
-                                        onChange={handleInputChange(setPhoneId)}
-                                        disabled={!isEditing}
-                                    />
-                                    {errors.phoneId && <p className="text-red-500 text-sm">Este campo es obligatorio, siga el formato.</p>}
-                                    {!isEditing && <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 text-white text-sm rounded-md opacity-0 group-hover:opacity-100">
-                                        Primero debe habilitar 'Editar'
-                                    </div>}
-                                </div>
-                            </div>
-                            <div className="col-span-full">
-                                <label htmlFor="tokenAccess" className="block text-sm font-medium leading-6 text-[#F2F2F2]">
-                                    Token de acceso
-                                </label>
-                                <div className="mt-2 relative group">
-                                    <input
-                                        type="text"
-                                        className={`w-full lg:w-[750px] bg-[#FFFFFF] text-[#333333] px-4 py-2 rounded-md my-2 placeholder-[#9CA3AF] ${errors.tokenAccess ? 'border border-red-500' : ''}`}
-                                        placeholder="Ingrese el token de acceso"
-                                        value={tokenAccess}
-                                        onChange={handleInputChange(setTokenAccess)}
-                                        disabled={!isEditing}
-                                    />
-                                    {errors.tokenAccess && <p className="text-red-500 text-sm">Este campo es obligatorio, siga el formato.</p>}
-                                    {!isEditing && <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 text-white text-sm rounded-md opacity-0 group-hover:opacity-100">
-                                        Primero debe habilitar 'Editar'
-                                    </div>}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                    ))}
                 </div>
-            </div>
+
+                {!isEditing && (
+                    <p className="mt-6 text-sm text-muted">
+                        Pulsa <strong className="text-fg-2">Editar</strong> para cambiar los datos. Después de guardar, revisa el diagnóstico en{' '}
+                        <Link to="/profile" className="text-accent underline">Perfil</Link>.
+                    </p>
+                )}
+            </section>
         </>
     );
 }
