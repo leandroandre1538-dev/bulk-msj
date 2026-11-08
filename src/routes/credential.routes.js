@@ -5,13 +5,16 @@ import {
     getCredentialById,
     updateCredential,
     deleteCredential,
-    getCredentialsByUserId
+    getCredentialsByUserId,
+    getWhatsAppAccountStatus
 } from '../controllers/credential.controller.js';
 import { authRequired } from "../middlewares/validateToken.js";
 import { validateSchema } from "../middlewares/validator.middlewares.js";
 import { createCredentialSchema } from "../schemas/credential.schema.js";
 
 const router = Router();
+
+router.get('/whatsapp/status', authRequired, getWhatsAppAccountStatus); // Estado de la cuenta de WhatsApp
 
 router.post('/credentials', authRequired, validateSchema(createCredentialSchema),  createCredential); // Crear una nueva credencial
 router.get('/credentials', authRequired,  getAllCredentials); // Obtener todas las credenciales

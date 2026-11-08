@@ -1,4 +1,5 @@
 import Credential from '../models/credential.model.js';
+import { getWhatsAppStatus, maskToken } from '../libs/whatsappStatus.js';
 
 // Todas las operaciones se limitan a las credenciales del usuario autenticado (req.user.id).
 // El userId que pueda venir en el body o en la URL se ignora.
@@ -70,6 +71,32 @@ export const deleteCredential = async (req, res) => {
         res.json({ message: 'Credential deleted successfully' });
     } catch (error) {
         res.status(500).json({ message: error.message });
+    }
+};
+
+// Estado de la cuenta de WhatsApp según las credenciales guardadas (para la página de Perfil).
+// Nunca devuelve el token completo.
+export const getWhatsAppAccountStatus = async (req, res) => {
+    try {
+        const credential = await Credential.findOne({ userId: req.user.id });
+        if (!credential) {
+            return res.json({ configured: false });
+        }
+
+        const status = await getWhatsAppStatus(credential);
+        res.json({
+            configured: true,
+            credential: {
+                wabId: credential.wabId,
+                phoneId: credential.phoneId,
+                tokenPreview: maskToken(credential.tokenAccess),
+                updatedAt: credential.updatedAt
+            },
+            ...status
+        });
+    } catch (error) {
+        console.error('Error al consultar el estado de WhatsApp:', error);
+        res.status(500).json({ message: 'No se pudo consultar el estado de la cuenta de WhatsApp' });
     }
 };
 

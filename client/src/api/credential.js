@@ -11,3 +11,4 @@ export const updateCredentialRequest = (id, credential) => axios.put(`/credentia
 export const deleteCredentialRequest = (id) => axios.delete(`/credentials/${id}`);
 
 export const getCredentialsByUserIdRequest = (userId) => axios.get(`/credentials/user/${userId}`);
+export const getWhatsAppStatusRequest = () => axios.get('/whatsapp/status');

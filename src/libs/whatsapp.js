@@ -103,6 +103,35 @@ export const sendTemplateMessage = async (payload, { phoneId, tokenAccess }) => 
     return data;
 };
 
+// GET genérico a la Graph API. El error incluye el código de Meta (190 = token inválido o caducado).
+export const graphGet = async (path, tokenAccess) => {
+    const response = await fetch(`${GRAPH_URL}/${path}`, { headers: { Authorization: `Bearer ${tokenAccess}` } });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        const error = new Error(graphError(data, response.status));
+        error.status = response.status;
+        error.code = data?.error?.code;
+        throw error;
+    }
+    return data;
+};
+
+// Pide varios campos de un objeto. Si Meta rechaza alguno (no existe en esta versión o falta permiso),
+// los vuelve a pedir uno por uno y conserva los que sí responden.
+export const graphGetFields = async (id, fields, tokenAccess) => {
+    try {
+        return await graphGet(`${id}?fields=${fields.join(',')}`, tokenAccess);
+    } catch (error) {
+        if (error.code === 190 || fields.length === 1) throw error;
+        const parts = await Promise.all(
+            fields.map((field) => graphGet(`${id}?fields=${field}`, tokenAccess).catch(() => ({})))
+        );
+        const merged = Object.assign({}, ...parts);
+        if (!Object.keys(merged).some((key) => key !== 'id')) throw error;
+        return merged;
+    }
+};
+
 // Trae todas las plantillas de la cuenta (con paginación).
 export const fetchTemplates = async ({ wabId, tokenAccess }) => {
     let url = `${GRAPH_URL}/${wabId}/message_templates?fields=name,language,status,category,components&limit=100`;

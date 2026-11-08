@@ -119,7 +119,8 @@ export const verifyToken = async (req, res) => {
             username: userFound.username,
             email: userFound.email,
             firstName: userFound.firstName,
-            lastName: userFound.lastName
+            lastName: userFound.lastName,
+            createdAt: userFound.createdAt
         });
     })
 }

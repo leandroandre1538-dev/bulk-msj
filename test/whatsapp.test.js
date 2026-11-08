@@ -55,6 +55,28 @@ before(async () => {
         if (String(url).includes('/message_templates')) {
             return Response.json({ data: [template, { ...template, name: 'pendiente', status: 'PENDING' }] });
         }
+        if (String(url).includes('/debug_token')) {
+            return Response.json({ data: { is_valid: true, type: 'SYSTEM_USER', application: 'Mi App', expires_at: 0, scopes: ['whatsapp_business_messaging'] } });
+        }
+        if (String(url).includes('/WABA1/phone_numbers')) {
+            return Response.json({ data: [{ id: 'PHONE1', display_phone_number: '+1 555 000 1111' }] });
+        }
+        if (String(url).includes('/PHONE1?fields=')) {
+            // Simula que Meta no reconoce un campo: la petición completa falla y luego se piden uno por uno
+            if (String(url).includes(',') || String(url).includes('fields=platform_type')) {
+                return Response.json({ error: { code: 100, message: 'Tried accessing nonexisting field' } }, { status: 400 });
+            }
+            const field = String(url).split('fields=')[1];
+            const values = {
+                display_phone_number: '+1 555 000 1111', verified_name: 'Test Number', account_mode: 'SANDBOX',
+                status: 'CONNECTED', name_status: 'APPROVED', messaging_limit_tier: 'TIER_250',
+                health_status: { can_send_message: 'AVAILABLE', entities: [] }
+            };
+            return Response.json(field in values ? { id: 'PHONE1', [field]: values[field] } : { id: 'PHONE1' });
+        }
+        if (String(url).includes('/WABA1?fields=')) {
+            return Response.json({ id: 'WABA1', name: 'Mi Negocio', account_review_status: 'APPROVED', currency: 'USD' });
+        }
         const body = JSON.parse(options.body);
         if (body.to === '51999999999') {
             return Response.json({ error: { message: 'Recipient phone number not in allowed list' } }, { status: 400 });
@@ -192,4 +214,57 @@ test('API: envío masivo devuelve un resultado por contacto', async () => {
     // Solo se llamó a Meta para los dos números válidos con variables completas
     assert.equal(graphCalls.length, 2);
     assert.match(graphCalls[0].url, /\/PHONE1\/messages$/);
+});
+
+test('buildDiagnostics: token inválido corta el diagnóstico', async () => {
+    const { buildDiagnostics } = await import('../src/libs/whatsappStatus.js');
+    const d = buildDiagnostics({ phoneError: Object.assign(new Error('expired'), { code: 190 }) });
+    assert.equal(d.length, 1);
+    assert.equal(d[0].level, 'error');
+    assert.match(d[0].message, /token/);
+});
+
+test('buildDiagnostics: producción, token temporal, phone de otra WABA y envío bloqueado', async () => {
+    const { buildDiagnostics } = await import('../src/libs/whatsappStatus.js');
+    const d = buildDiagnostics({
+        token: { valid: true, expiresAt: '2026-11-08T00:00:00Z', scopes: ['whatsapp_business_messaging'] },
+        phone: {
+            account_mode: 'LIVE', status: 'CONNECTED',
+            health_status: {
+                can_send_message: 'BLOCKED',
+                entities: [
+                    { entity_type: 'WABA', errors: [{ error_code: 141006, error_description: 'No hay método de pago', possible_solution: 'Agrega una tarjeta' }] },
+                    { entity_type: 'BUSINESS', errors: [{ error_code: 141006, error_description: 'No hay método de pago' }] }
+                ]
+            }
+        },
+        waba: { account_review_status: 'APPROVED', primary_funding_id: '123' },
+        phoneBelongsToWaba: false
+    });
+    const text = d.map((x) => `${x.level}: ${x.message}`).join('\n');
+    assert.match(text, /warning: El token es temporal/);
+    assert.match(text, /error: Al token le faltan permisos: whatsapp_business_management/);
+    assert.match(text, /ok: Número en PRODUCCIÓN/);
+    assert.match(text, /ok: La cuenta tiene un método de pago/);
+    assert.match(text, /error: El Phone ID no pertenece/);
+    assert.match(text, /error: Meta indica que el envío está BLOQUEADO/);
+    // El error repetido por entidad aparece una sola vez
+    assert.equal(d.filter((x) => x.message.includes('141006')).length, 1);
+});
+
+test('API: estado de la cuenta de WhatsApp (modo prueba) sin exponer el token', async () => {
+    const res = await realFetch(`${baseUrl}/api/whatsapp/status`, { headers: { cookie } });
+    const data = await res.json();
+    assert.equal(res.status, 200, JSON.stringify(data));
+    assert.equal(data.configured, true);
+    assert.equal(data.phone.account_mode, 'SANDBOX');
+    assert.equal(data.phone.verified_name, 'Test Number');
+    assert.equal(data.phone.platform_type, undefined); // campo rechazado por Meta, se omite sin romper
+    assert.equal(data.phoneBelongsToWaba, true);
+    assert.equal(data.token.expiresAt, null);
+    assert.equal(data.credential.tokenPreview, '••••');
+    assert.ok(!JSON.stringify(data).includes('TOKEN1'));
+    assert.ok(data.diagnostics.some((x) => x.level === 'warning' && /PRUEBA/.test(x.message)));
+    assert.ok(data.diagnostics.some((x) => x.level === 'ok' && /permanente/.test(x.message)));
+    assert.ok(data.diagnostics.some((x) => /método de pago/.test(x.message)));
 });
